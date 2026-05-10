@@ -1,58 +1,172 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# File Transfer API (Laravel)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Backend REST untuk **manajemen berkas per pengguna**: registrasi/login, upload, daftar, download, hapus, dan visibilitas publik/privat. API berada di prefix **`/api`**, autentikasi dengan **Laravel Sanctum** (token Bearer).
 
-## About Laravel
+**Stack:** PHP ^8.3, Laravel ^13, Sanctum ^4.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Prasyarat
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.3 atau lebih baru (ekstensi umum Laravel: `openssl`, `pdo`, `mbstring`, `tokenizer`, `xml`, `ctype`, `json`, `fileinfo`, dll.)
+- [Composer](https://getcomposer.org/)
+- Node.js & npm (opsional, untuk aset front-end / `composer run dev`)
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Instalasi
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Clone atau masuk ke folder proyek, lalu pasang dependensi PHP:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+cd myapp
+composer install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Salin environment dan generate key aplikasi:
 
-## Contributing
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Sesuaikan **database** di `.env`. Default contoh memakai SQLite (`DB_CONNECTION=sqlite`). Jika memakai SQLite, pastikan file database ada:
 
-## Code of Conduct
+```bash
+touch database/database.sqlite
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Jalankan migrasi (tabel `users`, `files`, `personal_access_tokens`, dll.):
 
-## Security Vulnerabilities
+```bash
+php artisan migrate
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Tautkan storage publik agar file yang di-upload bisa diakses/diunduh dari disk `public`:
 
-## License
+```bash
+php artisan storage:link
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## Tahapan ringkas (alur kerja)
+
+| Urutan | Perintah / tindakan | Tujuan |
+|--------|---------------------|--------|
+| 1 | `composer install` | Dependensi PHP |
+| 2 | `cp .env.example .env` + `php artisan key:generate` | Konfigurasi & enkripsi |
+| 3 | Atur `DB_*` di `.env` + buat DB (mis. `touch database/database.sqlite`) | Persistensi data |
+| 4 | `php artisan migrate` | Skema tabel |
+| 5 | `php artisan storage:link` | Upload ke `storage/app/public` terhubung ke `public/storage` |
+| 6 | `php artisan serve` | Server API lokal (biasanya `http://127.0.0.1:8000`) |
+
+Untuk pengembangan penuh (server + queue + log + Vite), proyek ini menyediakan skrip:
+
+```bash
+composer run dev
+```
+
+---
+
+## Analisa (arsitektur & alur)
+
+### Modul utama
+
+- **`routes/api.php`** — definisi endpoint; grup `auth:sanctum` membungkus operasi file selain download publik.
+- **`App\Http\Controllers\API\AuthController`** — register, login, logout; token personal access dibuat per sesi.
+- **`App\Http\Controllers\API\FileController`** — CRUD logika file; upload ke disk `public` di folder `files/`.
+- **`App\Models\File`** — model dengan **UUID** primary key; relasi ke `User`.
+- **`App\Http\Resources\FileResource`** — pembungkus respons JSON seragam: `success`, `message`, `data`.
+
+### Alur autentikasi
+
+1. Client memanggil `POST /api/register` atau `POST /api/login` dengan JSON.
+2. Server mengembalikan `token` (plain text sekali); disimpan client.
+3. Request selanjutnya ke route terproteksi menyertakan header `Authorization: Bearer {token}`.
+4. `POST /api/logout` menghapus token saat ini di server.
+
+### Alur file
+
+1. User terautentikasi mengunggah `multipart` ke `POST /api/files/upload` (maks. 10 MB per validasi controller).
+2. Metadata disimpan di tabel `files`; berkas fisik di `storage/app/public/files/...`.
+3. Download oleh pemilik: `GET /api/files/download/{id}` (perlu token).
+4. Jika `is_public` true, siapa pun bisa `GET /api/public/files/{id}/download` tanpa token.
+5. `PUT /api/files/{id}/toggle-visibility` membalik flag publik; `DELETE /api/files/{id}` menghapus record dan file di storage.
+
+### Catatan desain & operasional
+
+- **Keamanan:** password pada register memakai aturan `Password` Laravel (panjang, huruf besar/kecil, angka, simbol). Token Sanctum untuk API stateless.
+- **Publik:** endpoint download publik hanya boleh dipakai untuk `is_public = true`; jangan expose ID jika ingin privasi lebih kuat (pertimbangkan URL bertanda/tanda tangan di iterasi berikutnya).
+- **Validasi:** input gagal mengembalikan **422** dengan format error bawaan Laravel.
+- **Health:** aplikasi mendaftarkan route health Laravel di **`/up`** (bukan di bawah `/api`).
+
+---
+
+## Dokumentasi API
+
+**Base URL lokal (contoh):** `http://127.0.0.1:8000/api`
+
+Header untuk route terproteksi: `Authorization: Bearer {token}`
+
+### Autentikasi
+
+#### `POST /register`
+
+Body: `application/json`
+
+| Field | Wajib | Keterangan |
+|-------|--------|------------|
+| `name` | Ya | String |
+| `email` | Ya | Unik |
+| `password` | Ya | Min. 6 karakter, huruf besar/kecil, angka, simbol |
+
+Respons sukses **201:**
+
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "data": {
+    "user": { "id": "...", "name": "...", "email": "..." },
+    "token": "1|..."
+  }
+}
+```
+
+#### `POST /login`
+
+Body: `application/json` — `email`, `password` (wajib). Respons **200** sama bentuknya dengan register. Gagal **401:** `{ "success": false, "message": "Invalid credentials" }`.
+
+#### `POST /logout`
+
+Header: Bearer token. Respons **200:** `{ "success": true, "message": "User logged out successfully" }`.
+
+### File
+
+Respons JSON umum (bukan download biner):
+
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": null
+}
+```
+
+Objek file memakai **UUID** sebagai `id`. Field umum: `user_id`, `original_name`, `file_name`, `file_size`, `mime_type`, `path`, `is_public`, timestamps.
+
+| Method | Path | Auth | Keterangan |
+|--------|------|------|------------|
+| `GET` | `/files` | Ya | Daftar file user, terbaru dulu |
+| `POST` | `/files/upload` | Ya | `multipart/form-data`: `file` (wajib, max 10 MB), `is_public` (opsional, boolean) |
+| `GET` | `/files/download/{id}` | Ya | Unduh berkas (pemilik) |
+| `GET` | `/public/files/{id}/download` | Tidak | Unduh jika `is_public` |
+| `DELETE` | `/files/{id}` | Ya | Hapus metadata + file di storage |
+| `PUT` | `/files/{id}/toggle-visibility` | Ya | Toggle `is_public` |
+
+---
+
+## Lisensi
+
+Proyek skeleton mengikuti lisensi **MIT** (Laravel). Isi aplikasi Anda dapat ditambahkan di sini sesuai kebijakan tim.
