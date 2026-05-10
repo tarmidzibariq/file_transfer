@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\FileResource;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class FileController extends Controller
 {
@@ -38,5 +39,13 @@ class FileController extends Controller
         return response()->download(storage_path('app/public/' . $file->path), $file->original_name);
     }
 
-
+    public function delete(Request $request, $id) {
+        $file = $request->user()->files()->findOrFail($id);
+        if ($file->path) {
+            Storage::disk('public')->delete($file->path);
+        }
+        $file->delete();
+        
+        return new FileResource(true, 'File deleted successfully', null);
+    }
 }
