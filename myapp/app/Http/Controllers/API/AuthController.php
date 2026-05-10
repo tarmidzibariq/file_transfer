@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -13,7 +14,7 @@ class AuthController extends Controller
         $validate = $request->validate([
             'name' => 'required|string',
             'email' => 'required|string|unique:users,email',
-            'password' => 'required|string|confirmed'
+            'password' => ['required', 'string', Password::min(6)->mixedCase()->numbers()->symbols()],
         ]);
 
         // Create user
@@ -41,7 +42,7 @@ class AuthController extends Controller
         // Validate request
         $validate = $request->validate([
             'email' => 'required|string',
-            'password' => 'required|email'
+            'password' => 'required|string'
         ]);
 
         // Find user by email
@@ -67,5 +68,14 @@ class AuthController extends Controller
                 'token' => $token
             ]
         ], 200);
+    }
+
+    public function logout(Request $request) {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User logged out successfully'
+        ]);
     }
 }
