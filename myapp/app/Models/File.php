@@ -20,4 +20,12 @@ class File extends Model
     public function user() {
         return $this->belongsTo(User::class);
     }
+
+    protected function casts(): array
+    {
+        return [
+            'is_public' => 'boolean',
+            'file_size' => 'integer',
+        ];
+    }
 }
