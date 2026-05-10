@@ -33,7 +33,10 @@ class FileController extends Controller
         return new FileResource(true, 'File uploaded successfully', $fileRecord);
     }
 
-    
+    public function download(Request $request, $id) {
+        $file = $request->user()->files()->findOrFail($id);
+        return response()->download(storage_path('app/public/' . $file->path), $file->original_name);
+    }
 
 
 }

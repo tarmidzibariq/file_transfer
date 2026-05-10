@@ -11,4 +11,5 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/files', [FileController::class, 'index']);
     Route::post('/files/upload', [FileController::class, 'upload']);
+    Route::get('/files/download/{id}', [FileController::class, 'download']);
 });
