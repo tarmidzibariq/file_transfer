@@ -17,9 +17,9 @@ return new class extends Migration
             $table->string('original_name', 100);
             $table->string('file_name', 65);
             $table->bigInteger('file_size');
-            $table->string('mime_type', 10);
+            $table->string('mime_type', 20);
             $table->string('path', 255);
-            $table->string('is_public')->default(false);
+            $table->boolean('is_public')->default(false);
             $table->timestamps();
         });
     }
